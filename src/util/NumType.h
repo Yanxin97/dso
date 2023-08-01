@@ -1,35 +1,12 @@
-/**
-* This file is part of DSO.
-* 
-* Copyright 2016 Technical University of Munich and Intel.
-* Developed by Jakob Engel <engelj at in dot tum dot de>,
-* for more information see <http://vision.in.tum.de/dso>.
-* If you use this code, please cite the respective publications as
-* listed on the above website.
-*
-* DSO is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* DSO is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with DSO. If not, see <http://www.gnu.org/licenses/>.
-*/
-
-
 #pragma once
 
 #include "Eigen/Core"
 #include "sophus/sim3.hpp"
 #include "sophus/se3.hpp"
+#include <Eigen/StdVector>
 
 
-namespace dso
+namespace sdv_loam
 {
 
 // CAMERA MODEL TO USE
@@ -51,7 +28,7 @@ typedef Sophus::SO3d SO3;
 
 
 
-#define CPARS 4
+#define CPARS 4  // 相机内参维数
 
 
 typedef Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic> MatXX;
@@ -120,9 +97,10 @@ typedef Eigen::Matrix<double,4,8> Mat48;
 typedef Eigen::Matrix<double,4,4> Mat44;
 
 
-typedef Eigen::Matrix<float,MAX_RES_PER_POINT,1> VecNRf;
+typedef Eigen::Matrix<float, MAX_RES_PER_POINT,1> VecNRf;
 typedef Eigen::Matrix<float,12,1> Vec12f;
 typedef Eigen::Matrix<float,1,8> Mat18f;
+typedef Eigen::Matrix<float,1,6> Mat16f;
 typedef Eigen::Matrix<float,6,6> Mat66f;
 typedef Eigen::Matrix<float,8,8> Mat88f;
 typedef Eigen::Matrix<float,8,4> Mat84f;
@@ -157,11 +135,6 @@ typedef Eigen::Matrix<float,14,1> Vec14f;
 typedef Eigen::Matrix<double,14,14> Mat1414;
 typedef Eigen::Matrix<double,14,1> Vec14;
 
-
-
-
-
-
 // transforms points from one frame to another.
 struct AffLight
 {
@@ -169,17 +142,16 @@ struct AffLight
 	AffLight() : a(0), b(0) {};
 
 	// Affine Parameters:
-	double a,b;	// I_frame = exp(a)*I_global + b. // I_global = exp(-a)*(I_frame - b).
-
+	// I_frame = exp(a)*I_global + b. 
+	// I_global = exp(-a)*(I_frame - b).
+	double a,b;	
+	
 	static Vec2 fromToVecExposure(float exposureF, float exposureT, AffLight g2F, AffLight g2T)
 	{
 		if(exposureF==0 || exposureT==0)
 		{
 			exposureT = exposureF = 1;
-			//printf("got exposure value of 0! please choose the correct model.\n");
-			//assert(setting_brightnessTransferFunc < 2);
 		}
-
 		double a = exp(g2T.a-g2F.a) * exposureT / exposureF;
 		double b = g2T.b - a*g2F.b;
 		return Vec2(a,b);

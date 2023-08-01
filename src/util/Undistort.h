@@ -1,27 +1,3 @@
-/**
-* This file is part of DSO.
-* 
-* Copyright 2016 Technical University of Munich and Intel.
-* Developed by Jakob Engel <engelj at in dot tum dot de>,
-* for more information see <http://vision.in.tum.de/dso>.
-* If you use this code, please cite the respective publications as
-* listed on the above website.
-*
-* DSO is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* DSO is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with DSO. If not, see <http://www.gnu.org/licenses/>.
-*/
-
-
 #pragma once
 
 #include "util/ImageAndExposure.h"
@@ -29,11 +5,7 @@
 #include "util/NumType.h"
 #include "Eigen/Core"
 
-
-
-
-
-namespace dso
+namespace sdv_loam
 {
 
 
@@ -56,7 +28,7 @@ public:
 	float* getG() {if(!valid) return 0; else return G;};
 private:
     float G[256*256];
-    int GDepth;
+    int GDepth; 
 	float* vignetteMap;
 	float* vignetteMapInv;
 	int w,h;
@@ -81,6 +53,7 @@ public:
 
 	template<typename T>
 	ImageAndExposure* undistort(const MinimalImage<T>* image_raw, float exposure=0, double timestamp=0, float factor=1) const;
+
 	static Undistort* getUndistorterForFile(std::string configFilename, std::string gammaFilename, std::string vignetteFilename);
 
 	void loadPhotometricCalibration(std::string file, std::string noiseImage, std::string vignetteImage);

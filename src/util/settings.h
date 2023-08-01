@@ -1,28 +1,3 @@
-/**
-* This file is part of DSO.
-* 
-* Copyright 2016 Technical University of Munich and Intel.
-* Developed by Jakob Engel <engelj at in dot tum dot de>,
-* for more information see <http://vision.in.tum.de/dso>.
-* If you use this code, please cite the respective publications as
-* listed on the above website.
-*
-* DSO is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* DSO is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with DSO. If not, see <http://www.gnu.org/licenses/>.
-*/
-
-
-
 #pragma once
 
 #include <string.h>
@@ -30,7 +5,7 @@
 #include <cmath>
 
 
-namespace dso
+namespace sdv_loam
 {
 #define SOLVER_SVD (int)1
 #define SOLVER_ORTHOGONALIZE_SYSTEM (int)2
@@ -81,8 +56,8 @@ extern float setting_minIdepthH_marg;
 
 extern float setting_maxIdepth;
 extern float setting_maxPixSearch;
-extern float setting_desiredImmatureDensity;			// done
-extern float setting_desiredPointDensity;			// done
+extern float setting_desiredImmatureDensity;
+extern float setting_desiredPointDensity;
 extern float setting_minPointsRemaining;
 extern float setting_maxLogAffFacInWindow;
 extern int setting_minFrames;
@@ -146,6 +121,7 @@ extern float setting_coarseCutoffTH;
 
 extern float setting_minGradHistCut;
 extern float setting_minGradHistAdd;
+
 extern float setting_gradDownweightPerLevel;
 extern bool  setting_selectDirectionDistribution;
 
@@ -174,14 +150,9 @@ extern bool setting_debugout_runquiet;
 extern bool disableAllDisplay;
 extern bool disableReconfigure;
 
-
 extern bool setting_onlyLogKFPoses;
 
-
-
-
 extern bool debugSaveImages;
-
 
 extern int sparsityFactor;
 extern bool goStepByStep;
@@ -194,38 +165,13 @@ extern float freeDebugParam3;
 extern float freeDebugParam4;
 extern float freeDebugParam5;
 
-
 void handleKey(char k);
-
-
-
 
 extern int staticPattern[10][40][2];
 extern int staticPatternNum[10];
 extern int staticPatternPadding[10];
 
-
-
-
-//#define patternNum staticPatternNum[setting_pattern]
-//#define patternP staticPattern[setting_pattern]
-//#define patternPadding staticPatternPadding[setting_pattern]
-
-//
 #define patternNum 8
 #define patternP staticPattern[8]
 #define patternPadding 2
-
-
-
-
-
-
-
-
-
-
-
-
-
 }

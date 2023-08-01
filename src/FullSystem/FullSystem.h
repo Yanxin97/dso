@@ -1,27 +1,3 @@
-/**
-* This file is part of DSO.
-* 
-* Copyright 2016 Technical University of Munich and Intel.
-* Developed by Jakob Engel <engelj at in dot tum dot de>,
-* for more information see <http://vision.in.tum.de/dso>.
-* If you use this code, please cite the respective publications as
-* listed on the above website.
-*
-* DSO is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* DSO is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with DSO. If not, see <http://www.gnu.org/licenses/>.
-*/
-
-
 #pragma once
 #define MAX_ACTIVE_FRAMES 100
 
@@ -42,7 +18,21 @@
 
 #include <math.h>
 
-namespace dso
+#include <queue>
+
+#include <ros/ros.h>
+#include "std_msgs/String.h"
+#include <sensor_msgs/Image.h>
+#include <sensor_msgs/image_encodings.h>
+#include <sensor_msgs/PointCloud.h>
+#include <sensor_msgs/PointCloud2.h>
+#include <nav_msgs/Odometry.h>
+#include <std_msgs/Bool.h>
+#include <cv_bridge/cv_bridge.h>
+#include <message_filters/subscriber.h>
+#include <opencv2/highgui/highgui.hpp>
+
+namespace sdv_loam
 {
 namespace IOWrap
 {
@@ -67,6 +57,7 @@ template<typename T> inline void deleteOut(std::vector<T*> &v, const int i)
 	v[i] = v.back();
 	v.pop_back();
 }
+
 template<typename T> inline void deleteOutPt(std::vector<T*> &v, const T* i)
 {
 	delete i;
@@ -78,6 +69,7 @@ template<typename T> inline void deleteOutPt(std::vector<T*> &v, const T* i)
 			v.pop_back();
 		}
 }
+
 template<typename T> inline void deleteOutOrder(std::vector<T*> &v, const int i)
 {
 	delete v[i];
@@ -85,6 +77,7 @@ template<typename T> inline void deleteOutOrder(std::vector<T*> &v, const int i)
 		v[k-1] = v[k];
 	v.pop_back();
 }
+
 template<typename T> inline void deleteOutOrder(std::vector<T*> &v, const T* element)
 {
 	int i=-1;
@@ -105,7 +98,6 @@ template<typename T> inline void deleteOutOrder(std::vector<T*> &v, const T* ele
 	delete element;
 }
 
-
 inline bool eigenTestNan(const MatXX &m, std::string msg)
 {
 	bool foundNan = false;
@@ -124,10 +116,6 @@ inline bool eigenTestNan(const MatXX &m, std::string msg)
 
 	return foundNan;
 }
-
-
-
-
 
 class FullSystem {
 public:
@@ -154,21 +142,61 @@ public:
     std::vector<IOWrap::Output3DWrapper*> outputWrapper;
 
 	bool isLost;
-	bool initFailed;
+	bool initFailed;        			
 	bool initialized;
 	bool linearizeOperation;
 
-
 	void setGammaFunction(float* BInv);
-	void setOriginalCalib(const VecXf &originalCalib, int originalW, int originalH);
 
-private:
+	ros::NodeHandle nh;
+
+	ros::Subscriber subLidarCloud;
+    ros::Subscriber subLidarPoseMap;
+    ros::Subscriber subLidarPoseOdometer;
+
+    std::queue<double> qTimeImg;
+    std::queue<double> qTimeLidarCloud;
+    std::queue<double> qTimeLidarPoseMap;
+    std::queue<double> qTimeLidarPoseOdometer;
+
+    std::queue<cv::Mat> qImg;
+
+    std::queue<std::vector<Eigen::Vector3d,Eigen::aligned_allocator<Eigen::Vector3d>>> qLidarCloud;
+    std::queue<std::vector<Eigen::Vector3d,Eigen::aligned_allocator<Eigen::Vector3d>>> qCloudPixel;
+
+    std::queue<Eigen::Matrix3d> qRotationMap;
+    std::queue<Eigen::Vector3d> qPositionMap;
+
+    std::queue<Eigen::Matrix3d> qRotationOdometer;
+    std::queue<Eigen::Vector3d> qPositionOdometer;
+
+    void initializationValue();
+    void loadSensorPrameters(const std::string &pathSensorParameter);
+
+	float shiTomasiScore(Eigen::Vector3f const *img, int u, int v);
 
 	CalibHessian Hcalib;
 
+	// cam to lidar
+	Eigen::Matrix3d Rlc;
+	Eigen::Vector3d tlc;
 
+	// cam prameters
+	float fx;
+	float cx;
+	float fy;
+	float cy;
 
+	// window size
+	int left = 10000;
+	int right = -1;
+	int up = 10000;
+	int down =-1;
 
+	bool addFeaturePoint;
+	bool ignoreKF = false;
+
+private:
 	// opt single point
 	int optimizePoint(PointHessian* point, int minObs, bool flagOOB);
 	PointHessian* optimizeImmaturePoint(ImmaturePoint* point, int minObs, ImmaturePointTemporaryResidual* residuals);
@@ -190,12 +218,12 @@ private:
 	void removeOutliers();
 
 
-	// set precalc values.
-	void setPrecalcValues();
+	
+	void setPrecalcValues();   // set precalc values.
 
+	void setMask(cv::Mat &currentFrame, int Ku, int Kv);
 
-	// solce. eventually migrate to ef.
-	void solveSystem(int iteration, double lambda);
+	void solveSystem(int iteration, double lambda);  	// solce. eventually migrate to ef.
 	Vec3 linearizeAll(bool fixLinearization);
 	bool doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,float stepfacA,float stepfacD);
 	void backupState(bool backupLastStep);
@@ -245,18 +273,11 @@ private:
 	long int statistics_numMargResBwd;
 	float statistics_lastFineTrackRMSE;
 
-
-
-
-
-
-
 	// =================== changed by tracker-thread. protected by trackMutex ============
 	boost::mutex trackMutex;
 	std::vector<FrameShell*> allFrameHistory;
 	CoarseInitializer* coarseInitializer;
 	Vec5 lastCoarseRMSE;
-
 
 	// ================== changed by mapper-thread. protected by mapMutex ===============
 	boost::mutex mapMutex;
@@ -266,6 +287,8 @@ private:
 	IndexThreadReduce<Vec10> treadReduce;
 
 	float* selectionMap;
+	float* selectionMapFromLidar;
+
 	PixelSelector* pixelSelector;
 	CoarseDistanceMap* coarseDistanceMap;
 
@@ -273,10 +296,7 @@ private:
 	std::vector<PointFrameResidual*> activeResiduals;
 	float currentMinActDist;
 
-
 	std::vector<float> allResVec;
-
-
 
 	// mutex etc. for tracker exchange.
 	boost::mutex coarseTrackerSwapMutex;			// if tracker sees that there is a new reference, tracker locks [coarseTrackerSwapMutex] and swaps the two.
@@ -291,13 +311,6 @@ private:
 
 	// mutex for camToWorl's in shells (these are always in a good configuration).
 	boost::mutex shellPoseMutex;
-
-
-
-/*
- * tracking always uses the newest KF as reference.
- *
- */
 
 	void makeKeyFrame( FrameHessian* fh);
 	void makeNonKeyFrame( FrameHessian* fh);

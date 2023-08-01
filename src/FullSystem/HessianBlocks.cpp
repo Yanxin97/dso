@@ -1,36 +1,14 @@
-/**
-* This file is part of DSO.
-* 
-* Copyright 2016 Technical University of Munich and Intel.
-* Developed by Jakob Engel <engelj at in dot tum dot de>,
-* for more information see <http://vision.in.tum.de/dso>.
-* If you use this code, please cite the respective publications as
-* listed on the above website.
-*
-* DSO is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* DSO is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with DSO. If not, see <http://www.gnu.org/licenses/>.
-*/
-
-
- 
 #include "FullSystem/HessianBlocks.h"
 #include "util/FrameShell.h"
 #include "FullSystem/ImmaturePoint.h"
 #include "OptimizationBackend/EnergyFunctionalStructs.h"
+#include "utility"
+#include "iostream"
 
-namespace dso
+using namespace std;
+
+namespace sdv_loam
 {
-
 
 PointHessian::PointHessian(const ImmaturePoint* const rawPoint, CalibHessian* Hcalib)
 {
@@ -42,11 +20,15 @@ PointHessian::PointHessian(const ImmaturePoint* const rawPoint, CalibHessian* Hc
 	maxRelBaseline=0;
 	numGoodResiduals=0;
 
+	if(rawPoint->type == ImmaturePoint::CORNER)
+		type = PointHessian::CORNER;
+	else if(rawPoint->type == ImmaturePoint::EDGELET)
+		type = PointHessian::EDGELET;
+
 	// set static values & initialization.
 	u = rawPoint->u;
 	v = rawPoint->v;
 	assert(std::isfinite(rawPoint->idepth_max));
-	//idepth_init = rawPoint->idepth_GT;
 
 	my_type = rawPoint->my_type;
 
@@ -59,10 +41,7 @@ PointHessian::PointHessian(const ImmaturePoint* const rawPoint, CalibHessian* Hc
 	energyTH = rawPoint->energyTH;
 
 	efPoint=0;
-
-
 }
-
 
 void PointHessian::release()
 {
@@ -70,13 +49,11 @@ void PointHessian::release()
 	residuals.clear();
 }
 
-
 void FrameHessian::setStateZero(const Vec10 &state_zero)
 {
 	assert(state_zero.head<6>().squaredNorm() < 1e-20);
 
 	this->state_zero = state_zero;
-
 
 	for(int i=0;i<6;i++)
 	{
@@ -87,8 +64,6 @@ void FrameHessian::setStateZero(const Vec10 &state_zero)
 		SE3 w2c_leftEps_M_x0 = (get_worldToCam_evalPT() * EepsM) * get_worldToCam_evalPT().inverse();
 		nullspaces_pose.col(i) = (w2c_leftEps_P_x0.log() - w2c_leftEps_M_x0.log())/(2e-3);
 	}
-	//nullspaces_pose.topRows<3>() *= SCALE_XI_TRANS_INVERSE;
-	//nullspaces_pose.bottomRows<3>() *= SCALE_XI_ROT_INVERSE;
 
 	// scale change
 	SE3 w2c_leftEps_P_x0 = (get_worldToCam_evalPT());
@@ -122,12 +97,15 @@ void FrameHessian::release()
 	pointHessiansMarginalized.clear();
 	pointHessiansOut.clear();
 	immaturePoints.clear();
-}
 
+	std::vector<PointHessian*>().swap(pointHessians);
+	std::vector<PointHessian*>().swap(pointHessiansMarginalized);
+	std::vector<PointHessian*>().swap(pointHessiansOut);
+	std::vector<ImmaturePoint*>().swap(immaturePoints);
+}
 
 void FrameHessian::makeImages(float* color, CalibHessian* HCalib)
 {
-
 	for(int i=0;i<pyrLevelsUsed;i++)
 	{
 		dIp[i] = new Eigen::Vector3f[wG[i]*hG[i]];
@@ -153,8 +131,6 @@ void FrameHessian::makeImages(float* color, CalibHessian* HCalib)
 			int lvlm1 = lvl-1;
 			int wlm1 = wG[lvlm1];
 			Eigen::Vector3f* dI_lm = dIp[lvlm1];
-
-
 
 			for(int y=0;y<hl;y++)
 				for(int x=0;x<wl;x++)
@@ -183,29 +159,26 @@ void FrameHessian::makeImages(float* color, CalibHessian* HCalib)
 
 			if(setting_gammaWeightsPixelSelect==1 && HCalib!=0)
 			{
-				float gw = HCalib->getBGradOnly((float)(dI_l[idx][0]));
+				float gw = HCalib->getBGradOnly((float)(dI_l[idx][0])); 
 				dabs_l[idx] *= gw*gw;	// convert to gradient of original color space (before removing response).
 			}
 		}
 	}
 }
 
-void FrameFramePrecalc::set(FrameHessian* host, FrameHessian* target, CalibHessian* HCalib )
+void FrameFramePrecalc::set(FrameHessian* host, FrameHessian* target, CalibHessian* HCalib)
 {
 	this->host = host;
 	this->target = target;
-
+	
 	SE3 leftToLeft_0 = target->get_worldToCam_evalPT() * host->get_worldToCam_evalPT().inverse();
 	PRE_RTll_0 = (leftToLeft_0.rotationMatrix()).cast<float>();
 	PRE_tTll_0 = (leftToLeft_0.translation()).cast<float>();
-
-
 
 	SE3 leftToLeft = target->PRE_worldToCam * host->PRE_camToWorld;
 	PRE_RTll = (leftToLeft.rotationMatrix()).cast<float>();
 	PRE_tTll = (leftToLeft.translation()).cast<float>();
 	distanceLL = leftToLeft.translation().norm();
-
 
 	Mat33f K = Mat33f::Zero();
 	K(0,0) = HCalib->fxl();
@@ -216,7 +189,6 @@ void FrameFramePrecalc::set(FrameHessian* host, FrameHessian* target, CalibHessi
 	PRE_KRKiTll = K * PRE_RTll * K.inverse();
 	PRE_RKiTll = PRE_RTll * K.inverse();
 	PRE_KtTll = K * PRE_tTll;
-
 
 	PRE_aff_mode = AffLight::fromToVecExposure(host->ab_exposure, target->ab_exposure, host->aff_g2l(), target->aff_g2l()).cast<float>();
 	PRE_b0_mode = host->aff_g2l_0().b;

@@ -1,36 +1,11 @@
-/**
-* This file is part of DSO.
-* 
-* Copyright 2016 Technical University of Munich and Intel.
-* Developed by Jakob Engel <engelj at in dot tum dot de>,
-* for more information see <http://vision.in.tum.de/dso>.
-* If you use this code, please cite the respective publications as
-* listed on the above website.
-*
-* DSO is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* DSO is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with DSO. If not, see <http://www.gnu.org/licenses/>.
-*/
-
-
 #pragma once
-
  
 #include "util/NumType.h"
 #include "vector"
 #include <math.h>
 #include "OptimizationBackend/RawResidualJacobian.h"
 
-namespace dso
+namespace sdv_loam
 {
 
 class PointFrameResidual;
@@ -70,9 +45,7 @@ public:
 
 	void takeDataF();
 
-
 	void fixLinearizationF(EnergyFunctional* ef);
-
 
 	// structural pointers
 	PointFrameResidual* data;
@@ -84,9 +57,8 @@ public:
 
 	RawResidualJacobian* J;
 
-	VecNRf res_toZeroF;
+	Vec2f res_toZeroF;
 	Vec8f JpJdF;
-
 
 	// status.
 	bool isLinearized;
@@ -146,20 +118,18 @@ public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 	EFFrame(FrameHessian* d) : data(d)
 	{
-		takeData();
+		takeData();  
 	}
 	void takeData();
 
-
-	Vec8 prior;				// prior hessian (diagonal)
-	Vec8 delta_prior;		// = state-state_prior (E_prior = (delta_prior)' * diag(prior) * (delta_prior)
-	Vec8 delta;				// state - state_zero.
-
-
+	Vec6 prior;					
+	Vec6 delta_prior;			
+	Vec6 delta;
 
 	std::vector<EFPoint*> points;
 	FrameHessian* data;
-	int idx;	// idx in frames.
+
+	int idx;
 
 	int frameID;
 };

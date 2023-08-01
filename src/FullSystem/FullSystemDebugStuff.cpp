@@ -1,34 +1,3 @@
-/**
-* This file is part of DSO.
-* 
-* Copyright 2016 Technical University of Munich and Intel.
-* Developed by Jakob Engel <engelj at in dot tum dot de>,
-* for more information see <http://vision.in.tum.de/dso>.
-* If you use this code, please cite the respective publications as
-* listed on the above website.
-*
-* DSO is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* DSO is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with DSO. If not, see <http://www.gnu.org/licenses/>.
-*/
-
-
-/*
- * KFBuffer.cpp
- *
- *  Created on: Jan 7, 2014
- *      Author: engelj
- */
-
 #include "FullSystem/FullSystem.h"
  
 #include "stdio.h"
@@ -45,7 +14,7 @@
 #include "FullSystem/ImmaturePoint.h"
 
 
-namespace dso
+namespace sdv_loam
 {
 
 
@@ -157,23 +126,12 @@ namespace dso
 
 		}
 
-
-
-
-
-
-
-
-
-
-
-
 		int wh = hG[0]*wG[0];
 		for(unsigned int f=0;f<frameHessians.size();f++)
 		{
 			MinimalImageB3* img = new MinimalImageB3(wG[0],hG[0]);
 			images.push_back(img);
-			//float* fd = frameHessians[f]->I;
+
 			Eigen::Vector3f* fd = frameHessians[f]->dI;
 
 
@@ -276,13 +234,13 @@ namespace dso
 				{
 					if(ph==0) continue;
 					if(ph->my_type==0)
-						img->setPixelCirc(ph->u+0.5f, ph->v+0.5f, Vec3b(255,0,255));
+						img->setPixelCirc(ph->u+0.5f, ph->v+0.5f, Vec3b(255,0,255));// pink
 					if(ph->my_type==1)
-						img->setPixelCirc(ph->u+0.5f, ph->v+0.5f, Vec3b(255,0,0));
+						img->setPixelCirc(ph->u+0.5f, ph->v+0.5f, Vec3b(255,0,0)); // blue
 					if(ph->my_type==2)
-						img->setPixelCirc(ph->u+0.5f, ph->v+0.5f, Vec3b(0,0,255));
+						img->setPixelCirc(ph->u+0.5f, ph->v+0.5f, Vec3b(0,0,255)); // red
 					if(ph->my_type==3)
-						img->setPixelCirc(ph->u+0.5f, ph->v+0.5f, Vec3b(0,255,255));
+						img->setPixelCirc(ph->u+0.5f, ph->v+0.5f, Vec3b(0,255,255)); // yellow
 				}
 				for(PointHessian* ph : frameHessians[f]->pointHessiansMarginalized)
 				{
@@ -351,15 +309,5 @@ namespace dso
 				delete img;
 			}
 		}
-
-
-
-
 	}
-
-
-
-
-
-
 }

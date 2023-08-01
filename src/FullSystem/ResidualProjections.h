@@ -1,27 +1,3 @@
-/**
-* This file is part of DSO.
-* 
-* Copyright 2016 Technical University of Munich and Intel.
-* Developed by Jakob Engel <engelj at in dot tum dot de>,
-* for more information see <http://vision.in.tum.de/dso>.
-* If you use this code, please cite the respective publications as
-* listed on the above website.
-*
-* DSO is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* DSO is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with DSO. If not, see <http://www.gnu.org/licenses/>.
-*/
-
-
 #pragma once
 
 #include "util/NumType.h"
@@ -29,9 +5,8 @@
 #include "FullSystem/HessianBlocks.h"
 #include "util/settings.h"
 
-namespace dso
+namespace sdv_loam
 {
-
 
 EIGEN_STRONG_INLINE float derive_idepth(
 		const Vec3f &t, const float &u, const float &v,
@@ -41,8 +16,6 @@ EIGEN_STRONG_INLINE float derive_idepth(
 	return (dxInterp*drescale * (t[0]-t[2]*u)
 			+ dyInterp*drescale * (t[1]-t[2]*v))*SCALE_IDEPTH;
 }
-
-
 
 EIGEN_STRONG_INLINE bool projectPoint(
 		const float &u_pt,const float &v_pt,
@@ -55,8 +28,6 @@ EIGEN_STRONG_INLINE bool projectPoint(
 	Kv = ptp[1] / ptp[2];
 	return Ku>1.1f && Kv>1.1f && Ku<wM3G && Kv<hM3G;
 }
-
-
 
 EIGEN_STRONG_INLINE bool projectPoint(
 		const float &u_pt,const float &v_pt,
@@ -80,10 +51,54 @@ EIGEN_STRONG_INLINE bool projectPoint(
 
 	u = ptp[0] * drescale;
 	v = ptp[1] * drescale;
+
 	Ku = u*HCalib->fxl() + HCalib->cxl();
 	Kv = v*HCalib->fyl() + HCalib->cyl();
 
 	return Ku>1.1f && Kv>1.1f && Ku<wM3G && Kv<hM3G;
+}
+
+EIGEN_STRONG_INLINE Vec3f point2world(
+		const float &u_pt,const float &v_pt,
+		const float &idepth,
+		const int &dx, const int &dy,
+		const float cx, const float cy, const float fxi, const float fyi,
+		const Mat33f &R, const Vec3f &t)
+{
+	Vec3f KliP = Vec3f(
+			(u_pt+dx-cx)*fxi,
+			(v_pt+dy-cy)*fyi,
+			1);
+
+	Vec3f ptRef = KliP / idepth;
+
+	Vec3f ptWorld = R * ptRef + t;
+
+	return ptWorld;
+}
+
+EIGEN_STRONG_INLINE bool world2frame(
+		const Vec3f &ptWorld,
+		const float cx, const float cy, const float fx, const float fy,
+		const Mat33f &R, const Vec3f &t, Vec3f &ptFrame, float &Ku, float &Kv)
+{
+	ptFrame = R * ptWorld + t;
+
+	Vec3f unitFrame;
+	unitFrame[0] = ptFrame[0] / ptFrame[2]; unitFrame[1] = ptFrame[1] / ptFrame[2]; unitFrame[2] = ptFrame[2] / ptFrame[2];
+
+	Ku = unitFrame[0] * fx + cx;
+	Kv = unitFrame[1] * fy + cy;
+
+	return Ku>1.1f && Kv>1.1f && Ku<wM3G && Kv<hM3G;
+}
+
+EIGEN_STRONG_INLINE void pixel2unit(
+		const float cx, const float cy, const float fxi, const float fyi,
+		const float Ku, const float Kv, float &u, float &v)
+{
+	u = (Ku - cx) * fxi;
+	v = (Kv - cy) * fyi;
 }
 
 

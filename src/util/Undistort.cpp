@@ -1,29 +1,3 @@
-/**
-* This file is part of DSO.
-* 
-* Copyright 2016 Technical University of Munich and Intel.
-* Developed by Jakob Engel <engelj at in dot tum dot de>,
-* for more information see <http://vision.in.tum.de/dso>.
-* If you use this code, please cite the respective publications as
-* listed on the above website.
-*
-* DSO is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* DSO is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with DSO. If not, see <http://www.gnu.org/licenses/>.
-*/
-
-
-
-
 #include <sstream>
 #include <fstream>
 #include <iostream>
@@ -35,17 +9,14 @@
 #include "IOWrapper/ImageDisplay.h"
 #include "IOWrapper/ImageRW.h"
 #include "util/Undistort.h"
+#include "opencv2/opencv.hpp"
 
+#include <iostream>
 
-namespace dso
+using namespace std;
+
+namespace sdv_loam
 {
-
-
-
-
-
-
-
 
 PhotometricUndistorter::PhotometricUndistorter(
 		std::string file,
@@ -74,15 +45,12 @@ PhotometricUndistorter::PhotometricUndistorter(
 		return;
 	}
 
-
-
 	{
 		std::string line;
 		std::getline( f, line );
 		std::istringstream l1i( line );
+
 		std::vector<float> Gvec = std::vector<float>( std::istream_iterator<float>(l1i), std::istream_iterator<float>() );
-
-
 
         GDepth = Gvec.size();
 
@@ -106,15 +74,13 @@ PhotometricUndistorter::PhotometricUndistorter(
 
 		float min=G[0];
         float max=G[GDepth-1];
-        for(int i=0;i<GDepth;i++) G[i] = 255.0 * (G[i] - min) / (max-min);			// make it to 0..255 => 0..255.
+        for(int i=0;i<GDepth;i++) G[i] = 255.0 * (G[i] - min) / (max-min);
 	}
 
 	if(setting_photometricCalibration==0)
 	{
         for(int i=0;i<GDepth;i++) G[i]=255.0f*i/(float)(GDepth-1);
 	}
-
-
 
 	printf("Reading Vignette Image from %s\n",vignetteImage.c_str());
 	MinimalImage<unsigned short>* vm16 = IOWrap::readImageBW_16U(vignetteImage.c_str());
@@ -169,10 +135,8 @@ PhotometricUndistorter::PhotometricUndistorter(
 	if(vm16!=0) delete vm16;
 	if(vm8!=0) delete vm8;
 
-
 	for(int i=0;i<w*h;i++)
 		vignetteMapInv[i] = 1.0f / vignetteMap[i];
-
 
 	printf("Successfully read photometric calibration!\n");
 	valid = true;
@@ -183,7 +147,6 @@ PhotometricUndistorter::~PhotometricUndistorter()
 	if(vignetteMapInv != 0) delete[] vignetteMapInv;
 	delete output;
 }
-
 
 void PhotometricUndistorter::unMapFloatImage(float* image)
 {
@@ -218,8 +181,7 @@ void PhotometricUndistorter::processFrame(T* image_in, float exposure_time, floa
 	assert(output->w == w && output->h == h);
 	assert(data != 0);
 
-
-	if(!valid || exposure_time <= 0 || setting_photometricCalibration==0) // disable full photometric calibration.
+	if(!valid || exposure_time <= 0 || setting_photometricCalibration==0)
 	{
 		for(int i=0; i<wh;i++)
 		{
@@ -250,12 +212,9 @@ void PhotometricUndistorter::processFrame(T* image_in, float exposure_time, floa
 		output->exposure_time = 1;
 
 }
+
 template void PhotometricUndistorter::processFrame<unsigned char>(unsigned char* image_in, float exposure_time, float factor);
 template void PhotometricUndistorter::processFrame<unsigned short>(unsigned short* image_in, float exposure_time, float factor);
-
-
-
-
 
 Undistort::~Undistort()
 {
@@ -312,10 +271,6 @@ Undistort* Undistort::getUndistorterForFile(std::string configFilename, std::str
 			if(!u->isValid()) {delete u; return 0; }
 		}
 	}
-
-
-
-
 
     // clean model selection implementation.
     else if(std::sscanf(l1.c_str(), "KannalaBrandt %f %f %f %f %f %f %f %f",
@@ -397,6 +352,7 @@ ImageAndExposure* Undistort::undistort(const MinimalImage<T>* image_raw, float e
 
 	if (!passthrough)
 	{
+
 		float* out_data = result->image;
 		float* in_data = photometricUndist->output->image;
 
@@ -424,8 +380,6 @@ ImageAndExposure* Undistort::undistort(const MinimalImage<T>* image_raw, float e
 			float xx = remapX[idx];
 			float yy = remapY[idx];
 
-
-
 			if(benchmark_varNoise>0)
 			{
 				float deltax = getInterpolatedElement11BiCub(noiseMapX, 4+(xx/(float)wOrg)*benchmark_noiseGridsize, 4+(yy/(float)hOrg)*benchmark_noiseGridsize, benchmark_noiseGridsize+8 );
@@ -440,7 +394,6 @@ ImageAndExposure* Undistort::undistort(const MinimalImage<T>* image_raw, float e
 				xx = getInterpolatedElement(remapX, x, y, w);
 				yy = getInterpolatedElement(remapY, x, y, w);
 			}
-
 
 			if(xx<0)
 				out_data[idx] = 0;
@@ -480,9 +433,9 @@ ImageAndExposure* Undistort::undistort(const MinimalImage<T>* image_raw, float e
 
 	return result;
 }
+
 template ImageAndExposure* Undistort::undistort<unsigned char>(const MinimalImage<unsigned char>* image_raw, float exposure, double timestamp, float factor) const;
 template ImageAndExposure* Undistort::undistort<unsigned short>(const MinimalImage<unsigned short>* image_raw, float exposure, double timestamp, float factor) const;
-
 
 void Undistort::applyBlurNoise(float* img) const
 {
@@ -501,7 +454,6 @@ void Undistort::applyBlurNoise(float* img) const
 				noiseMapY[i] =  benchmark_varBlurNoise  * (rand()/(float)RAND_MAX);
 		}
 	}
-
 
 	float gaussMap[1000];
 	for(int i=0;i<1000;i++)
@@ -579,8 +531,6 @@ void Undistort::applyBlurNoise(float* img) const
 			img[x+y*this->w] = sumCW / sumW;
 		}
 
-
-
 	delete[] noiseMapX;
 	delete[] noiseMapY;
 }
@@ -601,6 +551,7 @@ void Undistort::makeOptimalK_crop()
 	for(int x=0; x<100000;x++)
 	{tgX[x] = (x-50000.0f) / 10000.0f; tgY[x] = 0;}
 	distortCoordinates(tgX, tgY,tgX, tgY,100000);
+
 	for(int x=0; x<100000;x++)
 	{
 		if(tgX[x] > 0 && tgX[x] < wOrg-1)
@@ -609,6 +560,7 @@ void Undistort::makeOptimalK_crop()
 			maxX = (x-50000.0f) / 10000.0f;
 		}
 	}
+
 	for(int y=0; y<100000;y++)
 	{tgY[y] = (y-50000.0f) / 10000.0f; tgX[y] = 0;}
 	distortCoordinates(tgX, tgY,tgX, tgY,100000);
@@ -633,7 +585,6 @@ void Undistort::makeOptimalK_crop()
 	printf("initial range: x: %.4f - %.4f; y: %.4f - %.4f!\n", minX, maxX, minY, maxY);
 
 
-
 	// 2. while there are invalid pixels at the border: shrink square at the side that has invalid pixels,
 	// if several to choose from, shrink the wider dimension.
 	bool oobLeft=true, oobRight=true, oobTop=true, oobBottom=true;
@@ -641,6 +592,7 @@ void Undistort::makeOptimalK_crop()
 	while(oobLeft || oobRight || oobTop || oobBottom)
 	{
 		oobLeft=oobRight=oobTop=oobBottom=false;
+
 		for(int y=0;y<h;y++)
 		{
 			remapX[y*2] = minX;
@@ -648,15 +600,15 @@ void Undistort::makeOptimalK_crop()
 			remapY[y*2] = remapY[y*2+1] = minY + (maxY-minY) * (float)y / ((float)h-1.0f);
 		}
 		distortCoordinates(remapX, remapY,remapX, remapY,2*h);
+
 		for(int y=0;y<h;y++)
 		{
 			if(!(remapX[2*y] > 0 && remapX[2*y] < wOrg-1))
 				oobLeft = true;
+
 			if(!(remapX[2*y+1] > 0 && remapX[2*y+1] < wOrg-1))
 				oobRight = true;
 		}
-
-
 
 		for(int x=0;x<w;x++)
 		{
@@ -675,7 +627,6 @@ void Undistort::makeOptimalK_crop()
 				oobBottom = true;
 		}
 
-
 		if((oobLeft || oobRight) && (oobTop || oobBottom))
 		{
 			if((maxX-minX) > (maxY-minY))
@@ -691,7 +642,6 @@ void Undistort::makeOptimalK_crop()
 
 		iteration++;
 
-
 		printf("iteration %05d: range: x: %.4f - %.4f; y: %.4f - %.4f!\n", iteration,  minX, maxX, minY, maxY);
 		if(iteration > 500)
 		{
@@ -699,7 +649,7 @@ void Undistort::makeOptimalK_crop()
 			exit(1);
 		}
 	}
-
+	
 	K(0,0) = ((float)w-1.0f)/(maxX-minX);
 	K(1,1) = ((float)h-1.0f)/(maxY-minY);
 	K(0,2) = -minX*K(0,0);
@@ -736,16 +686,15 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
     std::getline(infile,l3);
     std::getline(infile,l4);
 
-    // l1 & l2
-    if(nPars == 5) // fov model
+    if(nPars == 5)
 	{
 		char buf[1000];
 		snprintf(buf, 1000, "%s%%lf %%lf %%lf %%lf %%lf", prefix.c_str());
-
+		
 		if(std::sscanf(l1.c_str(), buf, &parsOrg[0], &parsOrg[1], &parsOrg[2], &parsOrg[3], &parsOrg[4]) == 5 &&
 				std::sscanf(l2.c_str(), "%d %d", &wOrg, &hOrg) == 2)
 		{
-			printf("Input resolution: %d %d\n",wOrg, hOrg);
+			printf("Input resolution: %d %d\n",wOrg, hOrg); 
 			printf("In: %f %f %f %f %f\n",
 					parsOrg[0], parsOrg[1], parsOrg[2], parsOrg[3], parsOrg[4]);
 		}
@@ -756,7 +705,7 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
 			return;
 		}
 	}
-	else if(nPars == 8) // KB, equi & radtan model
+	else if(nPars == 8)
 	{
 		char buf[1000];
 		snprintf(buf, 1000, "%s%%lf %%lf %%lf %%lf %%lf %%lf %%lf %%lf %%lf %%lf", prefix.c_str());
@@ -785,15 +734,13 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
 		return;
 	}
 
-
-
     if(parsOrg[2] < 1 && parsOrg[3] < 1)
     {
         printf("\n\nFound fx=%f, fy=%f, cx=%f, cy=%f.\n I'm assuming this is the \"relative\" calibration file format,"
                "and will rescale this by image width / height to fx=%f, fy=%f, cx=%f, cy=%f.\n\n",
                parsOrg[0], parsOrg[1], parsOrg[2], parsOrg[3],
                parsOrg[0] * wOrg, parsOrg[1] * hOrg, parsOrg[2] * wOrg - 0.5, parsOrg[3] * hOrg - 0.5 );
-
+		
         // rescale and substract 0.5 offset.
         // the 0.5 is because I'm assuming the calibration is given such that the pixel at (0,0)
         // contains the integral over intensity over [0,0]-[1,1], whereas I assume the pixel (0,0)
@@ -805,9 +752,6 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
         parsOrg[3] = parsOrg[3] * hOrg - 0.5;
     }
 
-
-
-	// l3
 	if(l3 == "crop")
 	{
 		outputCalibration[0] = -1;
@@ -836,10 +780,9 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
 		return;
 	}
 
-
-	// l4
 	if(std::sscanf(l4.c_str(), "%d %d", &w, &h) == 2)
 	{
+		// 如果有设置的大小
 		if(benchmarkSetting_width != 0)
         {
 			w = benchmarkSetting_width;
@@ -884,14 +827,11 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
 	}
 	else
 	{
-
-
         if(outputCalibration[2] > 1 || outputCalibration[3] > 1)
         {
             printf("\n\n\nWARNING: given output calibration (%f %f %f %f) seems wrong. It needs to be relative to image width / height!\n\n\n",
                    outputCalibration[0],outputCalibration[1],outputCalibration[2],outputCalibration[3]);
         }
-
 
 		K.setIdentity();
         K(0,0) = outputCalibration[0] * w;
@@ -906,7 +846,6 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
 		K(1,1) = fmax(benchmarkSetting_fxfyfac, (float)K(1,1));
         passthrough = false; // cannot pass through when fx / fy have been overwritten.
 	}
-
 
 	for(int y=0;y<h;y++)
 		for(int x=0;x<w;x++)
@@ -952,7 +891,6 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
 
 }
 
-
 UndistortFOV::UndistortFOV(const char* configFileName, bool noprefix)
 {
     printf("Creating FOV undistorter\n");
@@ -971,15 +909,11 @@ void UndistortFOV::distortCoordinates(float* in_x, float* in_y, float* out_x, fl
 	float dist = parsOrg[4];
 	float d2t = 2.0f * tan(dist / 2.0f);
 
-
-
 	// current camera parameters
     float fx = parsOrg[0];
     float fy = parsOrg[1];
     float cx = parsOrg[2];
     float cy = parsOrg[3];
-
-
 
 	float ofx = K(0,0);
 	float ofy = K(1,1);
@@ -1003,11 +937,6 @@ void UndistortFOV::distortCoordinates(float* in_x, float* in_y, float* out_x, fl
 		out_y[i] = iy;
 	}
 }
-
-
-
-
-
 
 UndistortRadTan::UndistortRadTan(const char* configFileName, bool noprefix)
 {
@@ -1067,8 +996,6 @@ void UndistortRadTan::distortCoordinates(float* in_x, float* in_y, float* out_x,
 
 }
 
-
-
 UndistortEquidistant::UndistortEquidistant(const char* configFileName, bool noprefix)
 {
     printf("Creating Equidistant undistorter\n");
@@ -1094,13 +1021,10 @@ void UndistortEquidistant::distortCoordinates(float* in_x, float* in_y, float* o
     float k3 = parsOrg[6];
     float k4 = parsOrg[7];
 
-
     float ofx = K(0,0);
     float ofy = K(1,1);
     float ocx = K(0,2);
     float ocy = K(1,2);
-
-
 
     for(int i=0;i<n;i++)
     {
@@ -1125,8 +1049,6 @@ void UndistortEquidistant::distortCoordinates(float* in_x, float* in_y, float* o
         out_y[i] = oy;
     }
 }
-
-
 
 UndistortKB::UndistortKB(const char* configFileName, bool noprefix)
 {
@@ -1190,10 +1112,6 @@ void UndistortKB::distortCoordinates(float* in_x, float* in_y, float* out_x, flo
 	}
 }
 
-
-
-
-
 UndistortPinhole::UndistortPinhole(const char* configFileName, bool noprefix)
 {
     if(noprefix)
@@ -1231,6 +1149,5 @@ void UndistortPinhole::distortCoordinates(float* in_x, float* in_y, float* out_x
 		out_y[i] = iy;
 	}
 }
-
 
 }

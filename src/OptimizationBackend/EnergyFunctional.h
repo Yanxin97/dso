@@ -1,38 +1,14 @@
-/**
-* This file is part of DSO.
-* 
-* Copyright 2016 Technical University of Munich and Intel.
-* Developed by Jakob Engel <engelj at in dot tum dot de>,
-* for more information see <http://vision.in.tum.de/dso>.
-* If you use this code, please cite the respective publications as
-* listed on the above website.
-*
-* DSO is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* DSO is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with DSO. If not, see <http://www.gnu.org/licenses/>.
-*/
-
-
 #pragma once
-
  
 #include "util/NumType.h"
 #include "util/IndexThreadReduce.h"
 #include "vector"
 #include <math.h>
 #include "map"
+#include "time.h"
 
 
-namespace dso
+namespace sdv_loam
 {
 
 class PointFrameResidual;
@@ -105,6 +81,7 @@ public:
 	MatXX lastHS;
 	VecX lastbS;
 	VecX lastX;
+	
 	std::vector<VecX> lastNullspaces_forLogging;
 	std::vector<VecX> lastNullspaces_pose;
 	std::vector<VecX> lastNullspaces_scale;
@@ -116,7 +93,7 @@ public:
 
 	std::map<uint64_t,
 	  Eigen::Vector2i,
-	  std::less<uint64_t>,
+	  std::less<uint64_t>, 
 	  Eigen::aligned_allocator<std::pair<const uint64_t, Eigen::Vector2i>>
 	  > connectivityMap;
 
@@ -125,7 +102,8 @@ private:
 	VecX getStitchedDeltaF() const;
 
 	void resubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT);
-    void resubstituteFPt(const VecCf &xc, Mat18f* xAd, int min, int max, Vec10* stats, int tid);
+
+	void resubstituteFPt(const VecCf &xc, Mat16f* xAd, int min, int max, Vec10* stats, int tid);
 
 	void accumulateAF_MT(MatXX &H, VecX &b, bool MT);
 	void accumulateLF_MT(MatXX &H, VecX &b, bool MT);
@@ -134,14 +112,14 @@ private:
 	void calcLEnergyPt(int min, int max, Vec10* stats, int tid);
 
 	void orthogonalize(VecX* b, MatXX* H);
-	Mat18f* adHTdeltaF;
 
-	Mat88* adHost;
-	Mat88* adTarget;
+	Mat16f* adHTdeltaF;
 
-	Mat88f* adHostF;
-	Mat88f* adTargetF;
+	Mat66* adHost;
+	Mat66* adTarget;
 
+	Mat66f* adHostF;
+	Mat66f* adTargetF;
 
 	VecC cPrior;
 	VecCf cDeltaF;
@@ -153,7 +131,7 @@ private:
 
 	AccumulatedSCHessianSSE* accSSE_bot;
 
-	std::vector<EFPoint*> allPoints;
+	std::vector<EFPoint*> allPoints;		
 	std::vector<EFPoint*> allPointsToMarg;
 
 	float currentLambda;

@@ -1,27 +1,3 @@
-/**
-* This file is part of DSO.
-* 
-* Copyright 2016 Technical University of Munich and Intel.
-* Developed by Jakob Engel <engelj at in dot tum dot de>,
-* for more information see <http://vision.in.tum.de/dso>.
-* If you use this code, please cite the respective publications as
-* listed on the above website.
-*
-* DSO is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* DSO is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with DSO. If not, see <http://www.gnu.org/licenses/>.
-*/
-
-
 #pragma once
 
 #include "util/NumType.h"
@@ -31,13 +7,11 @@
 #include "vector"
 #include <math.h>
 
-
-
-
-namespace dso
+namespace sdv_loam
 {
 struct CalibHessian;
 struct FrameHessian;
+class FullSystem;
 
 
 struct Pnt
@@ -50,7 +24,7 @@ public:
 	// idepth / isgood / energy during optimization.
 	float idepth;
 	bool isGood;
-	Vec2f energy;		// (UenergyPhotometric, energyRegularizer)
+	Vec2f energy;				// (UenergyPhotometric, energyRegularizer)	
 	bool isGood_new;
 	float idepth_new;
 	Vec2f energy_new;
@@ -74,6 +48,10 @@ public:
 
 	float my_type;
 	float outlierTH;
+
+	float mdepth;
+	float midepth;
+	bool isFromSensor;
 };
 
 class CoarseInitializer {
@@ -83,7 +61,9 @@ public:
 	~CoarseInitializer();
 
 
-	void setFirst(	CalibHessian* HCalib, FrameHessian* newFrameHessian);
+	void setFirst(CalibHessian* HCalib, FrameHessian* newFrameHessian);
+	void setFirstFromLidar(CalibHessian* HCalib, FrameHessian* newFrameHessian, FullSystem* fullSystem);
+
 	bool trackFrame(FrameHessian* newFrameHessian, std::vector<IOWrap::Output3DWrapper*> &wraps);
 	void calcTGrads(FrameHessian* newFrameHessian);
 
@@ -96,9 +76,9 @@ public:
 	AffLight thisToNext_aff;
 	SE3 thisToNext;
 
-
 	FrameHessian* firstFrame;
 	FrameHessian* newFrame;
+
 private:
 	Mat33 K[PYR_LEVELS];
 	Mat33 Ki[PYR_LEVELS];
@@ -124,12 +104,11 @@ private:
 	Eigen::DiagonalMatrix<float, 8> wM;
 
 	// temporary buffers for H and b.
-	Vec10f* JbBuffer;			// 0-7: sum(dd * dp). 8: sum(res*dd). 9: 1/(1+sum(dd*dd))=inverse hessian entry.
+	Vec10f* JbBuffer;
 	Vec10f* JbBuffer_new;
 
 	Accumulator9 acc9;
 	Accumulator9 acc9SC;
-
 
 	Vec3f dGrads[PYR_LEVELS];
 
@@ -161,16 +140,15 @@ private:
 	void makeNN();
 };
 
-
-
-
 struct FLANNPointcloud
 {
     inline FLANNPointcloud() {num=0; points=0;}
     inline FLANNPointcloud(int n, Pnt* p) :  num(n), points(p) {}
 	int num;
 	Pnt* points;
+
 	inline size_t kdtree_get_point_count() const { return num; }
+	
 	inline float kdtree_distance(const float *p1, const size_t idx_p2,size_t /*size*/) const
 	{
 		const float d0=p1[0]-points[idx_p2].u;
@@ -183,6 +161,7 @@ struct FLANNPointcloud
 		if (dim==0) return points[idx].u;
 		else return points[idx].v;
 	}
+
 	template <class BBOX>
 		bool kdtree_get_bbox(BBOX& /* bb */) const { return false; }
 };

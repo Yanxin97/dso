@@ -1,33 +1,7 @@
-/**
-* This file is part of DSO.
-* 
-* Copyright 2016 Technical University of Munich and Intel.
-* Developed by Jakob Engel <engelj at in dot tum dot de>,
-* for more information see <http://vision.in.tum.de/dso>.
-* If you use this code, please cite the respective publications as
-* listed on the above website.
-*
-* DSO is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* DSO is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with DSO. If not, see <http://www.gnu.org/licenses/>.
-*/
-
-
-
 #include "util/settings.h"
 #include <boost/bind.hpp>
 
-
-namespace dso
+namespace sdv_loam
 {
 int pyrLevelsUsed = PYR_LEVELS;
 
@@ -57,9 +31,9 @@ float setting_initialCalibHessian = 5e9;
 
 
 /* some modes for solving the resulting linear system (e.g. orthogonalize wrt. unobservable dimensions) */
-int setting_solverMode = SOLVER_FIX_LAMBDA | SOLVER_ORTHOGONALIZE_X_LATER;
+int setting_solverMode = SOLVER_ORTHOGONALIZE_X_LATER;
 double setting_solverModeDelta = 0.00001;
-bool setting_forceAceptStep = true;
+bool setting_forceAceptStep = false;
 
 
 
@@ -69,8 +43,8 @@ float setting_minIdepthH_marg = 50;
 
 
 
-float setting_desiredImmatureDensity = 1500; // immature points per frame
-float setting_desiredPointDensity = 2000; // aimed total points in the active window.
+float setting_desiredImmatureDensity = 500; // immature points per frame
+float setting_desiredPointDensity = 1500; // aimed total points in the active window.
 float setting_minPointsRemaining = 0.05;  // marg a frame if less than X% points remain.
 float setting_maxLogAffFacInWindow = 0.7; // marg a frame if factor between intensities to current frame is larger than 1/X or X.
 
@@ -78,7 +52,7 @@ float setting_maxLogAffFacInWindow = 0.7; // marg a frame if factor between inte
 int   setting_minFrames = 5; // min frames in window.
 int   setting_maxFrames = 7; // max frames in window.
 int   setting_minFrameAge = 1;
-int   setting_maxOptIterations=6; // max GN iterations.
+int   setting_maxOptIterations= 6; // max GN iterations.
 int   setting_minOptIterations=1; // min GN iterations.
 float setting_thOptIterations=1.2; // factor on break threshold for GN iteration (larger = break earlier)
 
@@ -124,7 +98,7 @@ int setting_gammaWeightsPixelSelect = 1; // 1 = use original intensity for pixel
 
 
 
-float setting_huberTH = 9; // Huber Threshold
+float setting_huberTH = 6; // Huber Threshold
 
 
 
@@ -143,7 +117,7 @@ float setting_coarseCutoffTH = 20;
 
 // parameters controlling pixel selection
 float setting_minGradHistCut = 0.5;
-float setting_minGradHistAdd = 7;
+float setting_minGradHistAdd = 3;
 float setting_gradDownweightPerLevel = 0.75;
 bool  setting_selectDirectionDistribution = true;
 
@@ -187,7 +161,7 @@ float freeDebugParam5 = 1;
 
 bool disableReconfigure=false;
 bool debugSaveImages = false;
-bool multiThreading = true;
+bool multiThreading = false;
 bool disableAllDisplay = false;
 bool setting_onlyLogKFPoses = true;
 bool setting_logStuff = true;
@@ -231,7 +205,7 @@ void handleKey(char k)
 
 
 
-
+//* 10种pattern, 每种40个可选点, 每个点2维xy,  妙啊!!!!
 int staticPattern[10][40][2] = {
 		{{0,0}, 	  {-100,-100}, {-100,-100}, {-100,-100}, {-100,-100}, {-100,-100}, {-100,-100}, {-100,-100}, {-100,-100}, {-100,-100},	// .
 		 {-100,-100}, {-100,-100}, {-100,-100}, {-100,-100}, {-100,-100}, {-100,-100}, {-100,-100}, {-100,-100}, {-100,-100}, {-100,-100},

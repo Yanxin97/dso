@@ -1,29 +1,4 @@
-/**
-* This file is part of DSO.
-* 
-* Copyright 2016 Technical University of Munich and Intel.
-* Developed by Jakob Engel <engelj at in dot tum dot de>,
-* for more information see <http://vision.in.tum.de/dso>.
-* If you use this code, please cite the respective publications as
-* listed on the above website.
-*
-* DSO is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* DSO is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with DSO. If not, see <http://www.gnu.org/licenses/>.
-*/
-
-
 #pragma once
-
  
 #include "util/NumType.h"
 #include "OptimizationBackend/MatrixAccumulators.h"
@@ -32,7 +7,7 @@
 #include "util/IndexThreadReduce.h"
 
 
-namespace dso
+namespace sdv_loam
 {
 
 class EFPoint;
@@ -52,8 +27,8 @@ public:
 			acc[tid]=0;
 			nframes[tid]=0;
 		}
-
 	};
+
 	inline ~AccumulatedTopHessianSSE()
 	{
 		for(int tid=0;tid < NUM_THREADS; tid++)
@@ -64,7 +39,6 @@ public:
 
 	inline void setZero(int nFrames, int min=0, int max=1, Vec10* stats=0, int tid=0)
 	{
-
 		if(nFrames != nframes[tid])
 		{
 			if(acc[tid] != 0) delete[] acc[tid];
@@ -86,8 +60,6 @@ public:
 
 	template<int mode> void addPoint(EFPoint* p, EnergyFunctional const * const ef, int tid=0);
 
-
-
 	void stitchDoubleMT(IndexThreadReduce<Vec10>* red, MatXX &H, VecX &b, EnergyFunctional const * const EF, bool usePrior, bool MT)
 	{
 		// sum up, splitting by bock in square.
@@ -98,8 +70,9 @@ public:
 			for(int i=0;i<NUM_THREADS;i++)
 			{
 				assert(nframes[0] == nframes[i]);
-				Hs[i] = MatXX::Zero(nframes[0]*8+CPARS, nframes[0]*8+CPARS);
-				bs[i] = VecX::Zero(nframes[0]*8+CPARS);
+
+				Hs[i] = MatXX::Zero(nframes[0]*6 + CPARS, nframes[0]*6 + CPARS); 
+				bs[i] = VecX::Zero(nframes[0]*6 + CPARS);
 			}
 
 			red->reduce(boost::bind(&AccumulatedTopHessianSSE::stitchDoubleInternal,
@@ -118,28 +91,27 @@ public:
 		}
 		else
 		{
-			H = MatXX::Zero(nframes[0]*8+CPARS, nframes[0]*8+CPARS);
-			b = VecX::Zero(nframes[0]*8+CPARS);
+			H = MatXX::Zero(nframes[0]*6+CPARS, nframes[0]*6+CPARS);
+			b = VecX::Zero(nframes[0]*6+CPARS);
+
 			stitchDoubleInternal(&H, &b, EF, usePrior,0,nframes[0]*nframes[0],0,-1);
 		}
 
 		// make diagonal by copying over parts.
 		for(int h=0;h<nframes[0];h++)
 		{
-			int hIdx = CPARS+h*8;
-			H.block<CPARS,8>(0,hIdx).noalias() = H.block<8,CPARS>(hIdx,0).transpose();
+			int hIdx = CPARS+h*6;
+			H.block<CPARS,6>(0,hIdx).noalias() = H.block<6,CPARS>(hIdx,0).transpose();
 
 			for(int t=h+1;t<nframes[0];t++)
 			{
-				int tIdx = CPARS+t*8;
-				H.block<8,8>(hIdx, tIdx).noalias() += H.block<8,8>(tIdx, hIdx).transpose();
-				H.block<8,8>(tIdx, hIdx).noalias() = H.block<8,8>(hIdx, tIdx).transpose();
+				int tIdx = CPARS+t*6;
+				
+				H.block<6,6>(hIdx, tIdx).noalias() += H.block<6,6>(tIdx, hIdx).transpose();
+				H.block<6,6>(tIdx, hIdx).noalias() = H.block<6,6>(hIdx, tIdx).transpose();
 			}
 		}
 	}
-
-
-
 
 	int nframes[NUM_THREADS];
 
@@ -155,8 +127,6 @@ public:
 	{
 		for(int i=min;i<max;i++) addPoint<mode>((*points)[i],ef,tid);
 	}
-
-
 
 private:
 

@@ -1,29 +1,4 @@
-/**
-* This file is part of DSO.
-* 
-* Copyright 2016 Technical University of Munich and Intel.
-* Developed by Jakob Engel <engelj at in dot tum dot de>,
-* for more information see <http://vision.in.tum.de/dso>.
-* If you use this code, please cite the respective publications as
-* listed on the above website.
-*
-* DSO is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* DSO is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with DSO. If not, see <http://www.gnu.org/licenses/>.
-*/
-
-
 #pragma once
-
  
 #include "util/NumType.h"
 #include "vector"
@@ -32,13 +7,11 @@
 #include "OptimizationBackend/MatrixAccumulators.h"
 #include "IOWrapper/Output3DWrapper.h"
 
-
-
-
-namespace dso
+namespace sdv_loam
 {
 struct CalibHessian;
 struct FrameHessian;
+struct PointHessian;
 struct PointFrameResidual;
 
 class CoarseTracker {
@@ -56,6 +29,9 @@ public:
 
 	void setCoarseTrackingRef(
 			std::vector<FrameHessian*> frameHessians);
+
+	void makeCoarseDepthForFirstFrame(FrameHessian* fh);
+	void setCTRefForFirstFrame(std::vector<FrameHessian *> frameHessians);
 
 	void makeK(
 			CalibHessian* HCalib);
@@ -87,6 +63,12 @@ public:
 	Vec5 lastResiduals;
 	Vec3 lastFlowIndicators;
 	double firstCoarseRMSE;
+
+	void calcHandb(Mat66 &H_out, Vec6 &b_out, const SE3 &curToWorld, std::vector<std::pair<PointHessian*, Eigen::Vector2d> > &overlap_pts);
+	bool structPoseEstimation(SE3 &curToWorld, std::vector<std::pair<PointHessian*, Eigen::Vector2d> > &overlap_pts);
+	float calculateRes(const SE3 &curToWorld, std::vector<std::pair<PointHessian*, Eigen::Vector2d> > &overlap_pts, int &num);
+	float calculateWeight(const float& x);
+
 private:
 
 
@@ -119,9 +101,7 @@ private:
 	float* buf_warped_refColor;
 	int buf_warped_n;
 
-
     std::vector<float*> ptrToDelete;
-
 
 	Accumulator9 acc;
 };
@@ -164,8 +144,8 @@ public:
 
 private:
 
-	PointFrameResidual** coarseProjectionGrid;
-	int* coarseProjectionGridNum;
+	PointFrameResidual** coarseProjectionGrid;	
+	int* coarseProjectionGridNum;				
 	Eigen::Vector2i* bfsList1;
 	Eigen::Vector2i* bfsList2;
 

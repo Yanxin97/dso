@@ -1,41 +1,12 @@
-/**
-* This file is part of DSO.
-* 
-* Copyright 2016 Technical University of Munich and Intel.
-* Developed by Jakob Engel <engelj at in dot tum dot de>,
-* for more information see <http://vision.in.tum.de/dso>.
-* If you use this code, please cite the respective publications as
-* listed on the above website.
-*
-* DSO is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* DSO is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with DSO. If not, see <http://www.gnu.org/licenses/>.
-*/
-
-
 #pragma once
-
 
 #include "util/NumType.h"
 
-
- 
-
-namespace dso
+namespace sdv_loam
 {
 
 
 const float minUseGrad_pixsel = 10;
-
 
 template<int pot>
 inline int gridMaxSelection(Eigen::Vector3f* grads, bool* map_out, int w, int h, float THFac)
@@ -56,6 +27,7 @@ inline int gridMaxSelection(Eigen::Vector3f* grads, bool* map_out, int w, int h,
 			float bestXX=0, bestYY=0, bestXY=0, bestYX=0;
 
 			Eigen::Vector3f* grads0 = grads+x+y*w;
+
 			for(int dx=0;dx<pot;dx++)
 				for(int dy=0;dy<pot;dy++)
 				{
@@ -115,7 +87,6 @@ inline int gridMaxSelection(Eigen::Vector3f* grads, bool* map_out, int w, int h,
 
 	return numGood;
 }
-
 
 inline int gridMaxSelection(Eigen::Vector3f* grads, bool* map_out, int w, int h, int pot, float THFac)
 {
@@ -216,10 +187,250 @@ inline int makePixelStatus(Eigen::Vector3f* grads, bool* map, int w, int h, floa
 	else if(sparsityFactor==11) numGoodPoints = gridMaxSelection<11>(grads, map, w, h, THFac);
 	else numGoodPoints = gridMaxSelection(grads, map, w, h, sparsityFactor, THFac);
 
+	float quotia = numGoodPoints / (float)(desiredDensity);
 
-	/*
-	 * #points is approximately proportional to sparsityFactor^2.
-	 */
+	int newSparsity = (sparsityFactor * sqrtf(quotia))+0.7f;
+
+	if(newSparsity < 1) newSparsity=1;
+
+	float oldTHFac = THFac;
+	if(newSparsity==1 && sparsityFactor==1) THFac = 0.5;
+
+	if((abs(newSparsity-sparsityFactor) < 1 && THFac==oldTHFac) ||
+			( quotia > 0.8 &&  1.0f / quotia > 0.8) ||
+			recsLeft == 0) 
+	{
+		sparsityFactor = newSparsity;
+		return numGoodPoints;
+	}
+	else
+	{
+		sparsityFactor = newSparsity;
+		return makePixelStatus(grads, map, w,h, desiredDensity, recsLeft-1, THFac);
+	}
+}
+
+template<int pot>
+inline int gridMaxSelectionFromLidar(Eigen::Vector3f* grads, bool* map_out, int w, int h, float THFac, 
+	std::vector<Eigen::Vector3d,Eigen::aligned_allocator<Eigen::Vector3d>> &vCloudPixel)
+{
+	std::vector<std::vector<Vec2f,Eigen::aligned_allocator<Vec2f>>> vLvl;
+	std::vector<std::vector<int>> vIndex;
+
+	for(int i = 0; i < (h-1)/pot; i++)
+		for(int j = 0; j < (w-1)/pot; j++)
+		{
+			std::vector<Vec2f,Eigen::aligned_allocator<Vec2f>> tempPt;
+			vLvl.push_back(tempPt);
+			std::vector<int> tempIndex;
+			vIndex.push_back(tempIndex);
+		}
+
+	for(int i = 0; i < vCloudPixel.size(); i++)
+	{
+		if((int)vCloudPixel[i](0, 0) >= w-pot || (int)vCloudPixel[i](1, 0) >= h-pot) continue;
+
+	    int indexX = (int)(vCloudPixel[i](0, 0)-1) / pot;
+	    int indexY = (int)(vCloudPixel[i](1, 0)-1) / pot;
+
+	    vLvl[indexY * ((w-1)/pot) + indexX].push_back(Vec2f((float)vCloudPixel[i](0, 0), (float)vCloudPixel[i](1, 0)));
+	    vIndex[indexY * ((w-1)/pot) + indexX].push_back(i);
+	}
+
+	memset(map_out, 0, sizeof(bool)*vCloudPixel.size());
+
+	int numGood = 0;
+	for(int y=1;y<h-pot;y+=pot)
+	{
+		for(int x=1;x<w-pot;x+=pot)
+		{
+			int bestXXID = -1;
+			int bestYYID = -1;
+			int bestXYID = -1;
+			int bestYXID = -1;
+
+			float bestXX=0, bestYY=0, bestXY=0, bestYX=0;
+
+			Eigen::Vector3f* grads0 = grads+x+y*w;
+
+			int i = ((y-1)/pot)*((w-1)/pot) + ((x-1)/pot);
+			for(int j = 0; j < vLvl[i].size(); j++)
+			{
+				int idx = vLvl[i][j](0, 0) + vLvl[i][j](1, 0) * w;
+				Eigen::Vector3f g = grads[idx];
+				float sqgd = g.tail<2>().squaredNorm();
+				float TH = THFac*minUseGrad_pixsel * (0.75f);
+
+				if(sqgd > TH*TH)
+				{
+					float agx = fabs((float)g[1]);
+					if(agx > bestXX) {bestXX=agx; bestXXID=vIndex[i][j];}
+
+					float agy = fabs((float)g[2]);
+					if(agy > bestYY) {bestYY=agy; bestYYID=vIndex[i][j];}
+
+					float gxpy = fabs((float)(g[1]-g[2]));
+					if(gxpy > bestXY) {bestXY=gxpy; bestXYID=vIndex[i][j];}
+
+					float gxmy = fabs((float)(g[1]+g[2]));
+					if(gxmy > bestYX) {bestYX=gxmy; bestYXID=vIndex[i][j];}
+				}
+			}
+
+			if(bestXXID>=0)
+			{
+				if(!map_out[bestXXID])
+					numGood++;
+				map_out[bestXXID] = true;
+
+			}
+			if(bestYYID>=0)
+			{
+				if(!map_out[bestYYID])
+					numGood++;
+				map_out[bestYYID] = true;
+
+			}
+			if(bestXYID>=0)
+			{
+				if(!map_out[bestXYID])
+					numGood++;
+				map_out[bestXYID] = true;
+
+			}
+			if(bestYXID>=0)
+			{
+				if(!map_out[bestYXID])
+					numGood++;
+				map_out[bestYXID] = true;
+
+			}
+		}
+	}
+
+	return numGood;
+}
+
+inline int gridMaxSelectionFromLidar(Eigen::Vector3f* grads, bool* map_out, int w, int h, int pot, float THFac, 
+	std::vector<Eigen::Vector3d,Eigen::aligned_allocator<Eigen::Vector3d>> &vCloudPixel)
+{
+
+	std::vector<std::vector<Vec2f,Eigen::aligned_allocator<Vec2f>>> vLvl;
+	std::vector<std::vector<int>> vIndex;
+
+	for(int i = 0; i < (h-1)/pot; i++)
+		for(int j = 0; j < (w-1)/pot; j++)
+		{
+			std::vector<Vec2f,Eigen::aligned_allocator<Vec2f>> tempPt;
+			vLvl.push_back(tempPt);
+			std::vector<int> tempIndex;
+			vIndex.push_back(tempIndex);
+		}
+
+	for(int i = 0; i < vCloudPixel.size(); i++)
+	{
+		if(vCloudPixel[i](0, 0) >= w-pot || vCloudPixel[i](1, 0) >= h-pot) continue;
+
+	    int indexX = (int)(vCloudPixel[i](0, 0)-1) / pot;
+	    int indexY = (int)(vCloudPixel[i](1, 0)-1) / pot;
+
+	    vLvl[indexY * ((w-1)/pot) + indexX].push_back(Vec2f((float)vCloudPixel[i](0, 0), (float)vCloudPixel[i](1, 0)));
+	    vIndex[indexY * ((w-1)/pot) + indexX].push_back(i);
+	}
+
+	memset(map_out, 0, sizeof(bool)*vCloudPixel.size());
+
+	int numGood = 0;
+	for(int y=1;y<h-pot;y+=pot)
+	{
+		for(int x=1;x<w-pot;x+=pot)
+		{
+			int bestXXID = -1;
+			int bestYYID = -1;
+			int bestXYID = -1;
+			int bestYXID = -1;
+
+			float bestXX=0, bestYY=0, bestXY=0, bestYX=0;
+
+			Eigen::Vector3f* grads0 = grads+x+y*w;
+
+			int i = ((y-1)/pot)*((w-1)/pot) + ((x-1)/pot);
+			for(int j = 0; j < vLvl[i].size(); j++)
+			{
+				int idx = vLvl[i][j](0, 0) + vLvl[i][j](1, 0) * w;
+				Eigen::Vector3f g = grads[idx];
+				float sqgd = g.tail<2>().squaredNorm();
+				float TH = THFac*minUseGrad_pixsel * (0.75f);
+
+				if(sqgd > TH*TH)
+				{
+					float agx = fabs((float)g[1]);
+					if(agx > bestXX) {bestXX=agx; bestXXID=vIndex[i][j];}
+
+					float agy = fabs((float)g[2]);
+					if(agy > bestYY) {bestYY=agy; bestYYID=vIndex[i][j];}
+
+					float gxpy = fabs((float)(g[1]-g[2]));
+					if(gxpy > bestXY) {bestXY=gxpy; bestXYID=vIndex[i][j];}
+
+					float gxmy = fabs((float)(g[1]+g[2]));
+					if(gxmy > bestYX) {bestYX=gxmy; bestYXID=vIndex[i][j];}
+				}
+			}
+
+			if(bestXXID>=0)
+			{
+				if(!map_out[bestXXID])
+					numGood++;
+				map_out[bestXXID] = true;
+
+			}
+			if(bestYYID>=0)
+			{
+				if(!map_out[bestYYID])
+					numGood++;
+				map_out[bestYYID] = true;
+
+			}
+			if(bestXYID>=0)
+			{
+				if(!map_out[bestXYID])
+					numGood++;
+				map_out[bestXYID] = true;
+
+			}
+			if(bestYXID>=0)
+			{
+				if(!map_out[bestYXID])
+					numGood++;
+				map_out[bestYXID] = true;
+
+			}
+		}
+	}
+
+	return numGood;
+}
+
+inline int makePixelStatusFromLidar(Eigen::Vector3f* grads, bool* map, int w, int h, float desiredDensity, int recsLeft, float THFac, 
+	std::vector<Eigen::Vector3d,Eigen::aligned_allocator<Eigen::Vector3d>> &vCloudPixel)
+{
+	if(sparsityFactor < 1) sparsityFactor = 1;
+
+	int numGoodPoints;
+
+	if(sparsityFactor==1) numGoodPoints = gridMaxSelectionFromLidar<1>(grads, map, w, h, THFac, vCloudPixel);
+	else if(sparsityFactor==2) numGoodPoints = gridMaxSelectionFromLidar<2>(grads, map, w, h, THFac, vCloudPixel);
+	else if(sparsityFactor==3) numGoodPoints = gridMaxSelectionFromLidar<3>(grads, map, w, h, THFac, vCloudPixel);
+	else if(sparsityFactor==4) numGoodPoints = gridMaxSelectionFromLidar<4>(grads, map, w, h, THFac, vCloudPixel);
+	else if(sparsityFactor==5) numGoodPoints = gridMaxSelectionFromLidar<5>(grads, map, w, h, THFac, vCloudPixel);
+	else if(sparsityFactor==6) numGoodPoints = gridMaxSelectionFromLidar<6>(grads, map, w, h, THFac, vCloudPixel);
+	else if(sparsityFactor==7) numGoodPoints = gridMaxSelectionFromLidar<7>(grads, map, w, h, THFac, vCloudPixel);
+	else if(sparsityFactor==8) numGoodPoints = gridMaxSelectionFromLidar<8>(grads, map, w, h, THFac, vCloudPixel);
+	else if(sparsityFactor==9) numGoodPoints = gridMaxSelectionFromLidar<9>(grads, map, w, h, THFac, vCloudPixel);
+	else if(sparsityFactor==10) numGoodPoints = gridMaxSelectionFromLidar<10>(grads, map, w, h, THFac, vCloudPixel);
+	else if(sparsityFactor==11) numGoodPoints = gridMaxSelectionFromLidar<11>(grads, map, w, h, THFac, vCloudPixel);
+	else numGoodPoints = gridMaxSelectionFromLidar(grads, map, w, h, sparsityFactor, THFac, vCloudPixel);
 
 	float quotia = numGoodPoints / (float)(desiredDensity);
 
@@ -232,23 +443,17 @@ inline int makePixelStatus(Eigen::Vector3f* grads, bool* map, int w, int h, floa
 	float oldTHFac = THFac;
 	if(newSparsity==1 && sparsityFactor==1) THFac = 0.5;
 
-
 	if((abs(newSparsity-sparsityFactor) < 1 && THFac==oldTHFac) ||
 			( quotia > 0.8 &&  1.0f / quotia > 0.8) ||
-			recsLeft == 0)
+			recsLeft == 0) 
 	{
-
-//		printf(" \n");
-		//all good
 		sparsityFactor = newSparsity;
 		return numGoodPoints;
 	}
 	else
 	{
-//		printf(" -> re-evaluate! \n");
-		// re-evaluate.
 		sparsityFactor = newSparsity;
-		return makePixelStatus(grads, map, w,h, desiredDensity, recsLeft-1, THFac);
+		return makePixelStatusFromLidar(grads, map, w,h, desiredDensity, recsLeft-1, THFac, vCloudPixel);
 	}
 }
 

@@ -1,40 +1,15 @@
-/**
-* This file is part of DSO.
-* 
-* Copyright 2016 Technical University of Munich and Intel.
-* Developed by Jakob Engel <engelj at in dot tum dot de>,
-* for more information see <http://vision.in.tum.de/dso>.
-* If you use this code, please cite the respective publications as
-* listed on the above website.
-*
-* DSO is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* DSO is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with DSO. If not, see <http://www.gnu.org/licenses/>.
-*/
-
-
-
 #include "IOWrapper/ImageRW.h"
 #include <opencv2/highgui/highgui.hpp>
+#include <string>
 
-
-namespace dso
+namespace sdv_loam
 {
 
 namespace IOWrap
 {
 MinimalImageB* readImageBW_8U(std::string filename)
 {
-	cv::Mat m = cv::imread(filename, CV_LOAD_IMAGE_GRAYSCALE);
+	cv::Mat m = cv::imread(filename, cv::IMREAD_GRAYSCALE);
 	if(m.rows*m.cols==0)
 	{
 		printf("cv::imread could not read image %s! this may segfault. \n", filename.c_str());
@@ -50,9 +25,29 @@ MinimalImageB* readImageBW_8U(std::string filename)
 	return img;
 }
 
+MinimalImageB* readRosImageBW_8U(cv::Mat &image)
+{
+	cv::Mat m = image.clone();
+
+	if(m.rows*m.cols==0)
+	{
+		printf("cv::imread could not read image. \n");
+		return 0;
+	}
+	if(m.type() != CV_8U)
+	{
+		printf("cv::imread did something strange! this may segfault. \n");
+		return 0;
+	}
+	MinimalImageB* img = new MinimalImageB(m.cols, m.rows);
+	memcpy(img->data, m.data, m.rows*m.cols);
+	
+	return img;
+}
+
 MinimalImageB3* readImageRGB_8U(std::string filename)
 {
-	cv::Mat m = cv::imread(filename, CV_LOAD_IMAGE_COLOR);
+	cv::Mat m = cv::imread(filename, cv::IMREAD_COLOR);
 	if(m.rows*m.cols==0)
 	{
 		printf("cv::imread could not read image %s! this may segfault. \n", filename.c_str());
@@ -70,7 +65,7 @@ MinimalImageB3* readImageRGB_8U(std::string filename)
 
 MinimalImage<unsigned short>* readImageBW_16U(std::string filename)
 {
-	cv::Mat m = cv::imread(filename, CV_LOAD_IMAGE_UNCHANGED);
+	cv::Mat m = cv::imread(filename, cv::IMREAD_UNCHANGED);
 	if(m.rows*m.cols==0)
 	{
 		printf("cv::imread could not read image %s! this may segfault. \n", filename.c_str());
@@ -88,7 +83,7 @@ MinimalImage<unsigned short>* readImageBW_16U(std::string filename)
 
 MinimalImageB* readStreamBW_8U(char* data, int numBytes)
 {
-	cv::Mat m = cv::imdecode(cv::Mat(numBytes,1,CV_8U, data), CV_LOAD_IMAGE_GRAYSCALE);
+	cv::Mat m = cv::imdecode(cv::Mat(numBytes,1,CV_8U, data), cv::IMREAD_GRAYSCALE);
 	if(m.rows*m.cols==0)
 	{
 		printf("cv::imdecode could not read stream (%d bytes)! this may segfault. \n", numBytes);

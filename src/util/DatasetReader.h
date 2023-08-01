@@ -1,32 +1,10 @@
-/**
-* This file is part of DSO.
-* 
-* Copyright 2016 Technical University of Munich and Intel.
-* Developed by Jakob Engel <engelj at in dot tum dot de>,
-* for more information see <http://vision.in.tum.de/dso>.
-* If you use this code, please cite the respective publications as
-* listed on the above website.
-*
-* DSO is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* DSO is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with DSO. If not, see <http://www.gnu.org/licenses/>.
-*/
-
-
 #pragma once
+
 #include "util/settings.h"
 #include "util/globalFuncs.h"
 #include "util/globalCalib.h"
 
+#include <iostream>
 #include <sstream>
 #include <fstream>
 #include <dirent.h>
@@ -35,46 +13,48 @@
 #include "util/Undistort.h"
 #include "IOWrapper/ImageRW.h"
 
+#include "opencv2/highgui/highgui.hpp"
+
 #if HAS_ZIPLIB
 	#include "zip.h"
 #endif
 
 #include <boost/thread.hpp>
 
-using namespace dso;
+using namespace sdv_loam;
 
-
-
-inline int getdir (std::string dir, std::vector<std::string> &files)
+inline int getdir (std::string dir, std::vector<std::string> &files, std::vector<std::string> &depthfiles, std::vector<double> &timestamps)
 {
-    DIR *dp;
-    struct dirent *dirp;
-    if((dp  = opendir(dir.c_str())) == NULL)
-    {
-        return -1;
-    }
-
-    while ((dirp = readdir(dp)) != NULL) {
-    	std::string name = std::string(dirp->d_name);
-
-    	if(name != "." && name != "..")
-    		files.push_back(name);
-    }
-    closedir(dp);
-
-
-    std::sort(files.begin(), files.end());
-
-    if(dir.at( dir.length() - 1 ) != '/') dir = dir+"/";
-	for(unsigned int i=0;i<files.size();i++)
+	std::string strAssociationFilename = dir + "/associate.txt";
+	std::ifstream fAssociation;
+	fAssociation.open(strAssociationFilename.c_str());
+	if(!fAssociation)
 	{
-		if(files[i].at(0) != '/')
-			files[i] = dir + files[i];
+		printf("please ensure that you have the associate file\n");
+		return -1;
 	}
-
-    return files.size();
+	while(!fAssociation.eof())
+    {
+        std::string s;
+        std::getline(fAssociation,s);
+        if(!s.empty())
+        {
+            std::stringstream ss;
+            ss << s;
+            double t;
+            std::string sRGB, sD;
+            ss >> t;
+            timestamps.push_back(t);
+            ss >> sRGB;
+            sRGB = dir + "/" + sRGB;
+            files.push_back(sRGB);
+            ss >> t;
+            ss >> sD;
+            sD = dir + "/" + sD;
+            depthfiles.push_back(sD);
+        }
+    }
 }
-
 
 struct PrepImageItem
 {
@@ -96,82 +76,22 @@ struct PrepImageItem
 	}
 };
 
-
-
-
 class ImageFolderReader
 {
 public:
-	ImageFolderReader(std::string path, std::string calibFile, std::string gammaFile, std::string vignetteFile)
+	ImageFolderReader(std::string calibFile, std::string gammaFile, std::string vignetteFile)
 	{
-		this->path = path;
 		this->calibfile = calibFile;
 
-#if HAS_ZIPLIB
-		ziparchive=0;
-		databuffer=0;
-#endif
-
-		isZipped = (path.length()>4 && path.substr(path.length()-4) == ".zip");
-
-
-
-
-
-		if(isZipped)
-		{
-#if HAS_ZIPLIB
-			int ziperror=0;
-			ziparchive = zip_open(path.c_str(),  ZIP_RDONLY, &ziperror);
-			if(ziperror!=0)
-			{
-				printf("ERROR %d reading archive %s!\n", ziperror, path.c_str());
-				exit(1);
-			}
-
-			files.clear();
-			int numEntries = zip_get_num_entries(ziparchive, 0);
-			for(int k=0;k<numEntries;k++)
-			{
-				const char* name = zip_get_name(ziparchive, k,  ZIP_FL_ENC_STRICT);
-				std::string nstr = std::string(name);
-				if(nstr == "." || nstr == "..") continue;
-				files.push_back(name);
-			}
-
-			printf("got %d entries and %d files!\n", numEntries, (int)files.size());
-			std::sort(files.begin(), files.end());
-#else
-			printf("ERROR: cannot read .zip archive, as compile without ziplib!\n");
-			exit(1);
-#endif
-		}
-		else
-			getdir (path, files);
-
-
 		undistort = Undistort::getUndistorterForFile(calibFile, gammaFile, vignetteFile);
-
 
 		widthOrg = undistort->getOriginalSize()[0];
 		heightOrg = undistort->getOriginalSize()[1];
 		width=undistort->getSize()[0];
 		height=undistort->getSize()[1];
-
-
-		// load timestamps if possible.
-		loadTimestamps();
-		printf("ImageFolderReader: got %d files in %s!\n", (int)files.size(), path.c_str());
-
 	}
 	~ImageFolderReader()
 	{
-#if HAS_ZIPLIB
-		if(ziparchive!=0) zip_close(ziparchive);
-		if(databuffer!=0) delete databuffer;
-#endif
-
-
 		delete undistort;
 	};
 
@@ -221,7 +141,7 @@ public:
 
 	MinimalImageB* getImageRaw(int id)
 	{
-			return getImageRaw_internal(id,0);
+		return getImageRaw_internal(id,0);
 	}
 
 	ImageAndExposure* getImage(int id, bool forceLoadDirectly=false)
@@ -229,6 +149,10 @@ public:
 		return getImage_internal(id, 0);
 	}
 
+	ImageAndExposure* getRosImage(cv::Mat &img, double timestamp)
+	{
+		return getRosImage_internal(img, timestamp);
+	}
 
 	inline float* getPhotometricGamma()
 	{
@@ -279,6 +203,10 @@ private:
 		}
 	}
 
+	MinimalImageB* getRosImageRaw_internal(cv::Mat& img)
+	{
+		return IOWrap::readRosImageBW_8U(img);
+	}
 
 	ImageAndExposure* getImage_internal(int id, int unused)
 	{
@@ -287,6 +215,15 @@ private:
 				minimg,
 				(exposures.size() == 0 ? 1.0f : exposures[id]),
 				(timestamps.size() == 0 ? 0.0 : timestamps[id]));
+		delete minimg;
+		return ret2;
+	}
+
+	ImageAndExposure* getRosImage_internal(cv::Mat &img, double timestamp)
+	{
+		MinimalImageB* minimg = getRosImageRaw_internal(img);
+		ImageAndExposure* ret2 = undistort->undistort<unsigned char>(
+				minimg, 1.0f, timestamp);
 		delete minimg;
 		return ret2;
 	}
@@ -360,6 +297,7 @@ private:
 
 	std::vector<ImageAndExposure*> preloadedImages;
 	std::vector<std::string> files;
+	std::vector<std::string> depthfiles;
 	std::vector<double> timestamps;
 	std::vector<float> exposures;
 
